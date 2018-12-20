@@ -1,17 +1,15 @@
-# Log4j源码阅读分析报告
-## Part1——功能分析与建模  
-### 一、为什么要用log4j？  
+# Log4j源码阅读分析报告  
+## 一、为什么要用log4j？  
 &emsp;&emsp;首先可以确认的是，我们大多数人，至少看这篇文章的人，基本都写过一些代码。那么问个小问题，我们的代码出错的时候，我们是怎么发现错误的呢？你们有些人可能会说，我是通过系统反馈的debug信息来一步步进行调试的。或许还有一部分人会说，我是通过在代码每一行写一个print语句看看printf语句能否输出来判断这个语句是否出错的。的确，在代码量比较少的时候，这样的确是个找到错误句子的一个简单的方法，多耗费一点时间而已。但是在代码量非常大的时候，这种方法就不可取了。这个时候我们一般都是通过第一种人说的那种方法，我们根据debug信息来确定错误的来源。debug信息就是日志记录的一种具体表现，日志记录不止在编译器debug的时候有用。在其他方面，比如我们的一个应用出了问题，我们要定位问题的源头，或者我们的数据出现了一些问题，我们要分析离线数据来找到这些问题。这个时候日志记录就很有用了，其可以把程序运行时的各种数据日志信息打印出来，从而让我们更好的分析，这样也更加的节省时间。  
 &emsp;&emsp;介绍完了日志记录的功能，我们该介绍为什么要用Log4j了。我们先看看Log4j是什么东西，Log4j是Apache的一个开放源代码的项目，通过使用log4j，我们可以控制日志信息输送的目的地：控制台、文件、GUI组件、套接口服务器、NT的事件记录器、UNIX Syslog守护进程等；我们也可以控制每一条日志的输出格式；通过定义每一条日志信息的级别，我们能够更加细致地控制日志的生成过程。最重要的是，我们可以直接通过配置文件来对这些部件进行灵活地配置，而不用修改相应的源代码。所以说Log4j就是一个日志记录的框架了？没错，Log4j就是一个日志记录的框架。并且现在正在被很多软件所使用。因此，我们有必要对Log4j的源码进行分析，搞清楚其工作原理。
-### 二、在看Log4j时，我们应该重点关注哪些部分？  
-&emsp;&emsp;Log4j在我们的平时生活中非常有用，其中日志优先级，日志输出目的地，日志输出格式，这几部分都是我们在使用Log4j时重点关注的部分。而本次课堂分析因为我们需要关注的功能是日志记录。因此，我们更应该关注的是Log4j这个程序是怎么将日志信息给记录下来的。我们更应该关注的功能是日志是什么时候产生的，日志产生的步骤，以及日志是以什么样的形式反映出来的，这些都是我们在看源码的时候需要重点注意的部分。
-## Part2——设计流程与分析  
-### 一、设计流程介绍  
+## 二、在看Log4j时，我们应该重点关注哪些部分？  
+&emsp;&emsp;Log4j在我们的平时生活中非常有用，其中日志优先级，日志输出目的地，日志输出格式，这几部分都是我们在使用Log4j时重点关注的部分。而本次课堂分析因为我们需要关注的功能是日志记录。因此，我们更应该关注的是Log4j这个程序是怎么将日志信息给记录下来的。我们更应该关注的功能是日志是什么时候产生的，日志产生的步骤，以及日志是以什么样的形式反映出来的，这些都是我们在看源码的时候需要重点注意的部分。 
+## 三、设计流程介绍  
 &emsp;&emsp;log4j的设计流程不是很复杂，但是通过文字进行介绍的话会比较抽象，所以我先用一张图来描述Log4j源码中的层次划分，在这里，我参考了文章[Apache log4j-1.2.17源码学习笔记](https://blog.csdn.net/zilong_zilong/article/details/78715500)并引用了文章中的图片。  
      ![avatar](http://dl2.iteye.com/upload/attachment/0128/1093/51891f13-a4bd-3108-99fd-42a99632fce8.jpg)  
 &emsp;&emsp;通过观看这张流程图，我们能够很清晰的理清源码中各部件的关系，比如Repository,Hierarchy,Logger,Rrootlogger等等。  
 &emsp;&emsp;首先我们能看到这张图最外面的一层是LogManager，这说明我们在记录日志的时候，总是从LogManager开始的，然后比其第一级的是RepositorySelector，即仓库选择器，为我们选择一个仓库，它的实现类也用小字标明了，DefaultRepositorySelector，然后再往下一级就是仓库了，其中装载着日志的各种信息，Repository的类型为LoggerRepository，实现类为Hierarchy，Repository中每一个部件的作用都已经在其中看出，DefaultFactory是负责logger创建的日志工厂类，其默认为DefaultCatagoryFactory，Listeners是Vector类型的变量，其功能是维持jmx对于appender的增加或者删除时间的监听处理，ht是Hashtable类型的变量，记录着所有logger类型变量名字的Catagory或者Privosion，还有其他一些变量信息就不一一说明了，通过观看图片就能很清楚看出来他们的功能及类别。而Root类型为Logger，实现类型为Rootlogger，然后再对root进行层层剖析，进而找到Rootlogger，Logger，然后通过Catagory，我们能够找到这个日志的各种信息了，比如level，name，parent，aai等等信息。然后我们是通过调用Appender对信息进行输出的，我们先通过layout对输出信息进行格式化，再调用不同的Appender，比如Consoleappender，Fileappender等等。到这个时候我们差不多对整个代码的设计流程有个大概的了解了。  
-### 二、设计流程分
+## 四、设计流程分
 &emsp;&emsp;前面对Log4j介绍了这么多，可是我们还没有看过Log4j代码，现在我们来看看代码，通过对代码进行分析来进一步对Log4j源码进行解析。首先我们找到一个程序例子，从程序入手来对日志记录过程进行分析。这里我选择的是源码中附带的一个sort.java程序，代码如下：
 ```
 public class Sort {
@@ -169,7 +167,6 @@ public static Logger getLogger(final String name) {
 }
 /**
  * repositorySelector在LogManager的静态代码块已经创建，默认实现为DefaultRepositorySelector
- */
 static public LoggerRepository getLoggerRepository() {
 	if (repositorySelector == null) {
 		repositorySelector = new DefaultRepositorySelector(new NOPLoggerRepository());
@@ -184,24 +181,19 @@ static public LoggerRepository getLoggerRepository() {
 	}
 	return repositorySelector.getLoggerRepository();
 }
-```  
 由于Hierarchy是其实现类，我们继续跟进代码，看看Hierarchy中getlogger是怎么实行的。
-```
-
 public Logger getLogger(String name) {
 	return getLogger(name, defaultFactory);
 }
- 
+ ```
 /**
  * 传入Logger名字，获取真对该名字唯一的一个Logger，只会在第一次创建，第二次是直接返回第一次创建的Logger对象
  */
 public Logger getLogger(String name, LoggerFactory factory) {
 	//CategoryKey是一个对String的包装类，这里传入了name=com.log4jtest.LoggerTest
 	CategoryKey key = new CategoryKey(name);
- 
       //Logger只会创建一次，创建完毕立即放入类型为Hashtable的变量ht中存储，后续直接取出返回
 	Logger logger;
- 
 	//这里防止多线程重复创建，先对类型为Hashtable的变量ht上锁，避免多线程相互竞争
 	synchronized (ht) {
 		//从类型为Hashtable的变量ht中查找之前是否已经创建过该Logger
@@ -239,4 +231,8 @@ public Logger getLogger(String name, LoggerFactory factory) {
 	}
 }
 ```
-这样，我们会发现这里是调用了factory，来构造一个新的日志，这样我们就分析清楚了这条日志产生的流程了。而日志内容，则是通过Logger.info、Logger.warn和Logger.error调用appender来打印出来的，因次我们还要分析这几个内容。这几个就在最后一节——高级设计意图中去分析了。
+这样，我们会发现这里是调用了factory，来构造一个新的日志，这样我们就分析清楚了这条日志产生的流程了。而日志内容，则是通过Logger.info、Logger.warn和Logger.error调用appender来打印出来的，这些就不过多介绍了。
+
+## 五、最后的一点总结
+
+&emsp;&emsp;我们通过分析整个实验流程，可以很清楚得看到一条日志的产生过程。即先产生一条无appender的日志，然后其指向其父节点，通过为其选择容器选择器，分配容器等各种操作，将其给确定下来。然后对于这个日志所产生的日志文件，我们通过添加配置文件，然后通过配置文件中的信息提取出这些信息，然后调用appender将其各种信息打印出来，这就是一条日志的生存过程。通过使用log4j，程序员在记录文件日志的时候就可以少干很多事了。
